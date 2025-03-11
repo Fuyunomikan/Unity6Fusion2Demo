@@ -3,11 +3,13 @@ using Fusion;
 using Fusion.Sockets;
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     [SerializeField] private GameObject networkRunnerPrefab;
+    [SerializeField] private DebugUIController debugUIController;
 
     [Header("Fusion接続設定")]
     [SerializeField] private GameMode gameMode = GameMode.AutoHostOrClient;
@@ -16,6 +18,7 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private bool isPublicSession = true;
 
     private NetworkRunner networkRunner;
+    public NetworkRunner NetworkRunner => networkRunner;
 
     private void Awake()
     {
@@ -27,16 +30,17 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
     {
         //コールバックの設定(あると便利)
         networkRunner.AddCallbacks(this);
+    }
 
-        //Fusionに接続
-        TryConnectFusion(gameMode, sessionName, maxPlayerCount, isPublicSession).Forget();
+    private void TryConnectLobby()
+    {
     }
 
     /// <summary>
     /// Fusionに接続を試みる
     /// </summary>
     /// <returns></returns>
-    private async UniTask TryConnectFusion(GameMode mode, string name, int playerCount, bool isVisible)
+    private async UniTask TryConnectSession(GameMode mode, string name, int playerCount, bool isVisible)
     {
         //接続設定(モードやルーム名など)
         StartGameArgs startGameArgs = new StartGameArgs();
@@ -113,6 +117,7 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
+        debugUIController.SetData(runner);
         Debug.Log("OnPlayerJoined");
     }
 
@@ -156,4 +161,46 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
         Debug.Log("OnUserSimulationMessage");
     }
     #endregion
+
+    #region DEBUG
+    public void DEBUG_JoinSessionBySetting()
+    {
+        TryConnectSession(gameMode, sessionName, maxPlayerCount, isPublicSession).Forget();
+    }
+
+    public void DEBUG_DisconnectSession()
+    {
+        networkRunner.Disconnect(networkRunner.LocalPlayer);
+    }
+    #endregion
+}
+
+//Inspector拡張
+[CustomEditor(typeof(FusionManager))]
+public class FusionManagerEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        base.OnInspectorGUI();
+
+        var fusionManager = target as FusionManager;
+
+        if (fusionManager.NetworkRunner == null) return;
+
+        //Fusionに接続中
+        if (fusionManager.NetworkRunner.State == NetworkRunner.States.Shutdown)
+        {
+            if (GUILayout.Button("Fusionに接続"))
+            {
+                fusionManager.DEBUG_JoinSessionBySetting();
+            }
+        }
+        else
+        {
+            if (GUILayout.Button("切断"))
+            {
+                fusionManager.DEBUG_DisconnectSession();
+            }
+        }
+    }
 }
