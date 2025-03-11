@@ -41,24 +41,30 @@ public class FusionPlayerManager : NetworkBehaviour
     public void UpdateHpUI()
     {
         hpText.text = HP.ToString();
+
+        //ダメージ表現
+        DamageAnim().Forget();
     }
 
-    private async UniTask DamageHP(int damage)
+    private void DamageHP(int damage)
     {
         HP -= damage;
+    }
 
+    private async UniTask DamageAnim()
+    {
         //簡易ダメージ表現（色変え）
         var preColor = meshRenderer.material.color;
         meshRenderer.material.color = Color.red;
 
-        await UniTask.Delay(1000);
-        
+        await UniTask.Delay(300);
+
         meshRenderer.material.color = preColor;
     }
 
     [Rpc(RpcSources.Proxies, RpcTargets.StateAuthority)]
     public void RPC_Damage()
     {
-        DamageHP(10).Forget();
+        DamageHP(10);
     }
 }
