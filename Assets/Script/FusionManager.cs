@@ -9,10 +9,11 @@ using UnityEngine;
 public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 {
     [SerializeField] private GameObject networkRunnerPrefab;
+    [SerializeField] private NetworkObject playerPrefab;
     [SerializeField] private DebugUIController debugUIController;
 
     [Header("Fusion接続設定")]
-    [SerializeField] private GameMode gameMode = GameMode.AutoHostOrClient;
+    [SerializeField] private GameMode gameMode = GameMode.Shared;
     [SerializeField] private string sessionName = "TestSession";
     [SerializeField] private int maxPlayerCount = 4;
     [SerializeField] private bool isPublicSession = true;
@@ -64,6 +65,30 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
+    public void JoinSessionBySetting()
+    {
+        TryConnectSession(gameMode, sessionName, maxPlayerCount, isPublicSession).Forget();
+    }
+
+    public void DisconnectSession()
+    {
+        networkRunner.Disconnect(networkRunner.LocalPlayer);
+    }
+
+    public void AttackOtherPlayer()
+    {
+        foreach (var item in networkRunner.ActivePlayers)
+        {
+            if (item == networkRunner.LocalPlayer) continue;
+
+            if(networkRunner.TryGetPlayerObject(item, out var playerObject))
+            {
+                var playerManager = playerObject.GetComponent<FusionPlayerManager>();
+                playerManager.RPC_Damage();
+            }
+        }
+    }
+
     #region NetworkCallback
     public void OnConnectedToServer(NetworkRunner runner)
     {
@@ -87,6 +112,8 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
     {
+        //UI更新
+        debugUIController.SetData(runner);
         Debug.Log("Fusionから切断されました");
     }
 
@@ -117,12 +144,21 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
+        //UI更新
         debugUIController.SetData(runner);
+
+        //自分の場合のみプレイヤーオブジェクトを生成して自分のPlayerRefに紐付け
+        if(player == runner.LocalPlayer)
+        {
+            runner.SetPlayerObject(player, runner.Spawn(playerPrefab));            
+        }
         Debug.Log("OnPlayerJoined");
     }
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
+        //UI更新
+        debugUIController.SetData(runner);
         Debug.Log("OnPlayerLeft");
     }
 
@@ -153,24 +189,14 @@ public class FusionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
     {
+        //UI更新
+        debugUIController.SetData(runner);
         Debug.Log("OnShutdown");
     }
 
     public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message)
     {
         Debug.Log("OnUserSimulationMessage");
-    }
-    #endregion
-
-    #region DEBUG
-    public void DEBUG_JoinSessionBySetting()
-    {
-        TryConnectSession(gameMode, sessionName, maxPlayerCount, isPublicSession).Forget();
-    }
-
-    public void DEBUG_DisconnectSession()
-    {
-        networkRunner.Disconnect(networkRunner.LocalPlayer);
     }
     #endregion
 }
@@ -192,14 +218,14 @@ public class FusionManagerEditor : Editor
         {
             if (GUILayout.Button("Fusionに接続"))
             {
-                fusionManager.DEBUG_JoinSessionBySetting();
+                fusionManager.JoinSessionBySetting();
             }
         }
         else
         {
             if (GUILayout.Button("切断"))
             {
-                fusionManager.DEBUG_DisconnectSession();
+                fusionManager.DisconnectSession();
             }
         }
     }
